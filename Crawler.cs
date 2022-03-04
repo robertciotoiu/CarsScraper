@@ -1,14 +1,10 @@
-﻿using HtmlAgilityPack;
+﻿using CarsScraper.Model;
+using HtmlAgilityPack;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Linq;
 using System.Net;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace CarsScraper
 {
@@ -57,7 +53,7 @@ namespace CarsScraper
         internal List<Car> RetrieveCarsByCategory()
         {
             List<Car> cars = new();
-            int i = 0, j = 0;
+            //int i = 0, j = 0;
 
             try
             {
@@ -75,19 +71,19 @@ namespace CarsScraper
                     foreach (var carUrl in carsUrlFromCategory)
                     {
                         Console.WriteLine($"Starting to RetrieveCar: {carUrl}");
-                        //var car = RetrieveCar("/model/land-rover/range-rover-velar", "large-suv-4x4-cars.php");
+
                         var car = RetrieveCar(carUrl, cat);
                         cars.Add(car);
-                        Console.WriteLine($"Result to RetrieveCarsFromCategory: {car}");
-                        NextPageWait();
 
-                        if (i == 3)
+                        Console.WriteLine($"Result to RetrieveCarsFromCategory: {car}");
+
+/*                        if (i == 3)
                             break;
-                        i++;
+                        i++;*/
                     }
-                    if (j == 3)
+/*                    if (j == 3)
                         break;
-                    j++;
+                    j++;*/
                 }
             }
             catch (Exception e)
@@ -114,9 +110,10 @@ namespace CarsScraper
         {
             // class="unit"
             // each unit has a <a href> child. Extract the link
+            List<string> carsUrls = new List<string>();
 
             doc = web.Load(catUrl);
-            List<string> carsUrls = new List<string>();
+            NextPageWait();
 
             IEnumerable<HtmlNode> nodes = doc.DocumentNode.Descendants(0).Where(n => n.HasClass("unit"));
             foreach (var node in nodes)
@@ -136,7 +133,7 @@ namespace CarsScraper
         private Car RetrieveCar(string carUrl, string category)
         {
             doc = web.Load(URL + carUrl[1..]);
-            NextPageWaitFAST();
+            NextPageWait();
             List<string> carsUrls = new List<string>();
 
             // We need:
@@ -146,7 +143,6 @@ namespace CarsScraper
             var model = carUrl.Replace(brand + "/", "");
 
             var filePrefix = $"{brand}_{model}_";
-            //Enum.TryParse(category.Substring(0, category.IndexOf("-")), out Car.CarCategory catEnum);
             category = category[..category.IndexOf(".")];
 
 
@@ -156,18 +152,18 @@ namespace CarsScraper
 
             var interiorFigures = doc.DocumentNode.Descendants(0).Where(n => n.HasClass("interior-figure"));
 
-            var dimensionsImage = interiorFigures.First().Descendants(1).First().Descendants(0).First().GetAttributeValue("src", "plm");//"/photos/citroen-ami-2021.jpg";
+            var dimensionsImage = interiorFigures.First().Descendants(1).First().Descendants(0).First().GetAttributeValue("src", "not-found");
 
-            var bootspaceImage = interiorFigures.ElementAt(1).Descendants(1).ElementAt(0).GetAttributeValue("src", "plm");
+            var bootspaceImage = interiorFigures.ElementAt(1).Descendants(1).ElementAt(0).GetAttributeValue("src", "not-found");
 
             var bootspaceResult = Regex.Match(interiorFigures.ElementAt(1).InnerText, @"\d+").Value;
 
             if (!int.TryParse(bootspaceResult, out int bootspace))// extract only the number
                 bootspace = -1;
 
-            var dashboardImage = interiorFigures.ElementAt(2).Descendants(1).ElementAt(0).GetAttributeValue("src", "plm");
+            var dashboardImage = interiorFigures.ElementAt(2).Descendants(1).ElementAt(0).GetAttributeValue("src", "not-found");
 
-            var interiorImage = interiorFigures.ElementAt(3).Descendants(1).ElementAt(0).GetAttributeValue("src", "plm");
+            var interiorImage = interiorFigures.ElementAt(3).Descendants(1).ElementAt(0).GetAttributeValue("src", "not-found");
 
             var seatsResult = Regex.Match(interiorFigures.ElementAt(3).InnerText, @"\d+").Value;
 
@@ -190,23 +186,18 @@ namespace CarsScraper
 
             if (interiorExtra.Any())
             {
-                var interiorExtra1 = interiorExtra.First().ChildNodes.First().GetAttributeValue("src", "plm");
-                var interiorExtra2 = interiorExtra.First().ChildNodes.ElementAt(1).GetAttributeValue("src", "plm");
-                var interiorExtra3 = interiorExtra.First().ChildNodes.ElementAt(2).GetAttributeValue("src", "plm");
+                var interiorExtra1 = interiorExtra.First().ChildNodes.First().GetAttributeValue("src", "not-found");
+                var interiorExtra2 = interiorExtra.First().ChildNodes.ElementAt(1).GetAttributeValue("src", "not-found");
+                var interiorExtra3 = interiorExtra.First().ChildNodes.ElementAt(2).GetAttributeValue("src", "not-found");
 
                 DownloadCarImage(filePrefix + "other1", interiorExtra1);
-                NextPageWaitFAST();
                 DownloadCarImage(filePrefix + "other2", interiorExtra2);
-                NextPageWaitFAST();
                 DownloadCarImage(filePrefix + "other3", interiorExtra3);
             }
 
             DownloadCarImage(filePrefix + "dimensions", dimensionsImage);
-            NextPageWaitFAST();
             DownloadCarImage(filePrefix + "bootspace", bootspaceImage);
-            NextPageWaitFAST();
             DownloadCarImage(filePrefix + "dashboard", dashboardImage);
-            NextPageWaitFAST();
             DownloadCarImage(filePrefix + "interior", interiorImage);
 
             Car car = new Car(
@@ -244,19 +235,22 @@ namespace CarsScraper
             {
                 Console.WriteLine($"Exception occured for image: {imageName} \n{ex.Message}");
             }
+
+            NextPageWaitFAST();
         }
 
+        // Use this after each page Load for a responsible scrapping
         private static void NextPageWait()
         {
             Random random = new Random();
-            var rndWaitingTime = random.Next(2000);
+            var rndWaitingTime = random.Next(1500,3500);
             Thread.Sleep(rndWaitingTime);
         }
 
         private static void NextPageWaitFAST()
         {
             Random random = new Random();
-            var rndWaitingTime = random.Next(100);
+            var rndWaitingTime = random.Next(500, 1000);
             Thread.Sleep(rndWaitingTime);
         }
     }
